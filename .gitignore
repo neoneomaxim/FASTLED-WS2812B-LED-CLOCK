@@ -1,0 +1,462 @@
+#include <DS3232RTC.h>
+#include <Time.h>
+#include <TimeLib.h>
+#include <Wire.h>
+#include <FastLED.h>
+
+#define NUM_LEDS 236 // 
+#define LED_TYPE WS2812B
+#define COLOR_ORDER GRB // Define color order for your strip 
+#define BRIGHTNESS 90
+#define FRAMES_PER_SECOND 120
+#define LED_PIN 6 // Data pin for led comunication
+#define PIXEL_DIGIT 70
+
+CRGB leds[NUM_LEDS]; // Define LEDs strip
+
+uint8_t AHue = 0; // rotating "base color" used by many of the patterns
+uint8_t BHue = 0;
+uint8_t CHue = 0;
+uint8_t DHue = 0;
+uint8_t EHue = 0;
+
+uint8_t neodelay = 0;
+
+uint8_t gHue = 0;
+uint8_t sparkling = 0;
+
+uint8_t neosat = 220;
+uint8_t neobright = 90;
+
+byte digits[10][70] = {
+{
+0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 }
+, // Digit 0
+{
+0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1 }
+, // Digit 1
+{
+1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 }
+, // Digit 2
+{
+1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 }
+, // Digit 3
+{
+1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1 }
+, // Digit 4
+{
+1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0 }
+, // Digit 5
+{
+1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0 }
+, // Digit 6
+{
+0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 }
+, // Digit 7
+{
+1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 }
+, // Digit 8
+{
+1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 }
+}; // Digit 9 | 2D Array for numbers on 7 segment
+
+byte firstdigit[2][20] = {
+{
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 }
+, // Digit 0 first number
+
+{
+1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 }
+}; // Digit 1 first number | 2D Array for numbers on 7 segment
+
+bool Dot = true; //Dot state
+
+bool DST = false; //DST state
+int last_digit = 0;
+//long ledColor = CRGB::DarkOrchid; // Color used (in hex)
+long ledColor = CRGB::MediumVioletRed;
+long ledColorDot = CRGB::LightCoral;
+long ColorTable[31] = {
+CRGB::Amethyst,
+CRGB::Aqua,
+CRGB::Blue,
+CRGB::Chartreuse,
+CRGB::DarkGreen,
+CRGB::DarkMagenta,
+CRGB::DarkOrange,
+CRGB::DeepPink,
+CRGB::Fuchsia,
+CRGB::Gold,
+CRGB::GreenYellow,
+CRGB::LightCoral,
+CRGB::Tomato,
+CRGB::Salmon,
+CRGB::Red,
+CRGB::DarkGoldenrod,
+CRGB::Crimson,
+CRGB::Chartreuse,
+CRGB::BlueViolet,
+CRGB::Orange,
+CRGB::OrangeRed,
+CRGB::OliveDrab,
+CRGB::Olive,
+CRGB::Orchid,
+CRGB::Silver,
+CRGB::SeaGreen,
+CRGB::SpringGreen,
+CRGB::Yellow,
+CRGB::YellowGreen,
+CRGB::HotPink,
+CRGB::Orchid};
+
+void setup(){
+delay(3000); // 3 second delay for recovery0
+Serial.begin(9600);
+
+Wire.begin();
+FastLED.addLeds<WS2812B, LED_PIN, RGB>(leds, NUM_LEDS);
+// FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+FastLED.setBrightness( BRIGHTNESS );
+//pinMode(2, INPUT_PULLUP); // Define DST adjust button pin
+pinMode(4, INPUT_PULLUP); // Define Minutes adjust button pin
+pinMode(5, INPUT_PULLUP); // Define Hours adjust button pin
+
+}
+
+// Check Light sensor and set brightness accordingly
+void BrightnessCheck(){
+const byte sensorPin = 3; // light sensor pin
+const byte brightnessLow = 75; // Low brightness value
+const byte brightnessHigh = 100; // High brightness value
+int sensorValue = digitalRead(sensorPin); // Read sensor
+if (sensorValue == 0) {
+Serial.println("Brightness High");
+LEDS.setBrightness(brightnessHigh);
+}
+
+else {
+Serial.println("Brightness Low");
+LEDS.setBrightness(brightnessLow);
+}
+
+};
+
+// Get time in a single number
+int GetTime(){
+tmElements_t Now;
+RTC.read(Now);
+//time_t Now = RTC.Now();// Getting the current Time and storing it into a DateTime object 
+int hour=Now.Hour;
+
+if (hour > 12 )
+{
+hour = hour - 12;
+}
+else
+{
+hour = hour;
+}
+int minutes=Now.Minute;
+int second =Now.Second;
+
+if (second % 2==0) {
+Dot = false;
+}
+else {
+Dot = true;
+};
+return (hour*100+minutes);
+};
+
+void DSTcheck(){
+
+int buttonDST = digitalRead(2);
+
+Serial.print("DST is: ");
+Serial.println(DST);
+
+if (buttonDST == LOW){
+
+if (DST){
+
+DST=false;
+
+Serial.print("Switching DST to: ");
+Serial.println(DST);
+
+}
+
+else if (!DST){
+
+DST=true;
+
+Serial.print("Switching DST to: ");
+Serial.println(DST);
+
+};
+
+delay(500);
+
+};
+
+}
+
+// Convert time to array needet for display
+
+void TimeToArray(){
+
+int Now = GetTime(); // Get time
+
+
+
+//Serial.print("Time is: ");
+//Serial.println(Now);
+
+int j =0;
+int dotON =1;
+int dotOFF =0;
+int digitDot =0;
+int last_digitDot =0;
+
+if (Dot){
+  digitDot =1;
+  for (j =90; j<96; j++) {
+sparkling ++;
+leds[j]=CHSV(EHue+(gHue*sparkling), neosat, neobright);
+delay(neodelay);
+
+}
+
+}
+
+else {
+  
+  for (j =90; j<96; j++) {
+leds[j]=CRGB::Black;
+
+
+  }
+ 
+};
+
+int cursor = 0;           // 
+
+for(int i=1; i<=4; i++){
+
+int digit = Now % 10; // get last digit in time
+
+if (i==1){
+
+cursor =166;               //digit 4 starting pixel
+
+
+for(int k=0; k<PIXEL_DIGIT; k++){
+sparkling ++;
+if (digits[digit][k]== 1){
+leds[cursor]=CHSV(AHue+(gHue*sparkling), neosat, neobright);
+delay(neodelay);
+}
+
+else if (digits[digit][k]==0){
+leds[cursor]=CRGB::Black;
+};
+
+cursor ++;
+
+};
+
+}
+
+else if (i==2){
+
+cursor =96;     //digit 3 starting pixel
+
+
+for(int k=0; k<PIXEL_DIGIT; k++){
+
+sparkling ++;
+if (digits[digit][k]== 1){
+leds[cursor]=CHSV(BHue+(gHue*sparkling), neosat, neobright);
+delay(neodelay);
+}
+
+else if (digits[digit][k]==0){
+leds[cursor]=CRGB::Black;
+};
+
+cursor ++;
+
+};
+
+
+}
+
+else if (i==3){
+
+cursor =20;         //digit 2 starting pixel
+
+for(int k=0; k<PIXEL_DIGIT; k++){
+
+sparkling ++;
+
+if (digits[digit][k]== 1){
+leds[cursor]=CHSV(CHue+(gHue*sparkling), neosat, neobright);
+delay(neodelay);
+}
+
+else if (digits[digit][k]==0){
+leds[cursor]=CRGB::Black;
+};
+
+cursor ++;
+
+};
+
+}
+
+else if (i==4){
+
+cursor =0;        //digit 1 starting pixel
+
+for(int k=0; k<20; k++){
+ 
+sparkling ++;
+if (firstdigit[digit][k]== 1){
+leds[cursor]=CHSV(DHue+(gHue*sparkling), neosat, neobright);
+delay(neodelay);
+
+}
+else if (firstdigit[digit][k]==0){
+leds[cursor]=CRGB::Black;
+};
+cursor ++;
+
+};
+
+
+};
+Now /= 10;
+};
+};
+
+
+void TimeAdjust(){
+int buttonH = digitalRead(5);
+int buttonM = digitalRead(4);
+if (buttonH == LOW || buttonM == LOW){
+delay(500);
+tmElements_t Now;
+RTC.read(Now);
+int hour=Now.Hour;
+int minutes=Now.Minute;
+if (buttonH == LOW){
+if (Now.Hour== 24){
+Now.Hour=1;
+}
+else {
+Now.Hour += 1;
+};
+}
+else {
+if (Now.Minute== 59){
+Now.Minute=0;
+}
+else {
+Now.Minute += 1;
+};
+};
+
+RTC.write(Now);
+}
+}
+
+
+// List of patterns to cycle through.  Each is defined as a separate function below.
+typedef void (*SimplePatternList[])();
+SimplePatternList gPatterns = {neosparkling, rainbow_onecolor, rainbow_randomcolor};
+
+uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
+
+   
+
+void loop() // Main loop
+{
+  // Call the current pattern function once, updating the 'leds' array
+gPatterns[gCurrentPatternNumber]();
+EVERY_N_SECONDS( 30 ) {
+  AHue =0;
+  BHue =0;
+  CHue =0;
+  DHue =0;
+  EHue =0; 
+}
+EVERY_N_SECONDS( 30 ) { nextPattern(); } // change patterns periodically
+//  ledColor = CHSV(gHue, 100, 100);
+//BrightnessCheck(); // Check brightness
+//DSTcheck(); // Check DST
+TimeAdjust(); // Check to se if time is geting modified*/
+TimeToArray(); // Get leds array with required configuration
+FastLED.show(); // Display leds array
+FastLED.delay(1000/FRAMES_PER_SECOND); 
+
+}
+#define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
+
+void nextPattern()
+{
+  // add one to the current pattern number, and wrap around at the end
+  gCurrentPatternNumber = (gCurrentPatternNumber + 1) % ARRAY_SIZE( gPatterns);
+}
+
+void rainbow_onecolor()
+{
+  neodelay =0;
+EVERY_N_MILLISECONDS( 1 ) {
+  
+  gHue =0;
+  AHue++;
+  BHue++;
+  CHue++;
+  DHue++;
+  EHue++;
+  
+  } // slowly cycle the "base color" through the rainbow
+}
+
+void rainbow_randomcolor()
+{
+  neodelay =0;
+EVERY_N_MILLISECONDS( 1 ) {
+  
+  gHue =0;
+  AHue++;
+  AHue++;
+  BHue--;
+  CHue++;
+  DHue--;
+  DHue--;
+  EHue++;
+  EHue++;
+  EHue++;
+  
+  } // slowly cycle the "base color" through the rainbow
+}
+
+  void neosparkling()
+{
+  neodelay =1;
+ {
+  
+  gHue =1;
+  AHue =0;
+  BHue =0;
+  CHue =0;
+  DHue =0;
+  EHue =0;
+
+  
+ // } // slowly cycle the "base color" through the rainbow
+}
+}
+
+
